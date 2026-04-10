@@ -1,0 +1,3 @@
+model:
+  name: cnn1d
+  hidden: 32

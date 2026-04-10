@@ -1,0 +1,14 @@
+base_configs:
+  - ../train/tcn_default.yaml
+
+quant:
+  checkpoint: outputs/checkpoints/tcn/tcn_gap_best.pt
+  calib_csv: data/processed/noise-d650-s20-i1.ila_processed.csv
+  w_bits: 12
+  a_bits: 14
+  per_oc: true
+  max_windows: 2048
+  out_npz: outputs/quant/quant_params.npz
+  out_report: outputs/quant/quant_report.json
+  out_include_dir: outputs/quant/include
+  export_base: tcn_quant

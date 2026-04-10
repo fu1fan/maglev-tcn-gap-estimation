@@ -1,0 +1,10 @@
+base_configs:
+  - ../train/tcn_default.yaml
+
+experiments:
+  width_ablation:
+    - tcn_ch8
+    - tcn_ch16
+    - tcn_ch32
+    - tcn_ch64
+    - tcn_ch128

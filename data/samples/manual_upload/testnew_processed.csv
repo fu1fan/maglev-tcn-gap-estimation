@@ -1,4 +1,4 @@
-AirGap,AirGap(mm),B,B(mt),Force,Force(mt),Voltage,Voltage(%),CurrentSmallSig,CurrentSmallSig(),Current,Current(A)
+AirGap,AirGap(mm),B,B(mt),Force,Force(mt),Duty,Duty(%),CurrentSmallSig,CurrentSmallSig(),Current,Current(A)
 650,10.23,584,82.36359999999999,-592,-591.0,5800,0.5800000000000001,1,1,265,3.3982
 650,10.23,581,81.89349999999999,-592,-591.0,5900,0.5900000000000001,-3,-3,265,3.3982
 648,10.245384615384616,577,81.26670000000001,-592,-591.0,5900,0.5900000000000001,-3,-3,259,3.3244000000000002

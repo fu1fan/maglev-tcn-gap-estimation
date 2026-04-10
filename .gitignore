@@ -208,3 +208,12 @@ __marimo__/
 
 # MacOS
 *.DS_Store
+
+# Project outputs
+outputs/
+artifacts/
+results/
+
+# IDEs
+.idea/
+.vscode/

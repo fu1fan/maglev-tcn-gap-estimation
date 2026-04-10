@@ -1,0 +1,5 @@
+model:
+  name: tcn
+  channels: [32, 32, 32, 32, 32]
+  kernel_size: 5
+  dropout: 0.1

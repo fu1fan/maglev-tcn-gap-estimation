@@ -1,0 +1,13 @@
+base_configs:
+  - ../train/tcn_default.yaml
+
+experiments:
+  core:
+    - proposed_tcn
+    - baseline_mlp
+    - baseline_1dcnn
+    - baseline_lstm
+    - ablation_raw_only
+    - ablation_no_ripple
+    - ablation_no_duty
+    - ablation_no_diff

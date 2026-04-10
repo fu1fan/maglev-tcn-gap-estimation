@@ -1,0 +1,11 @@
+data:
+  dataset_dir: data/processed
+  train_ratio: 0.7
+  fs_hz: 10000
+
+window:
+  length: 256
+  stride: 4
+
+normalization:
+  eps: 1.0e-12

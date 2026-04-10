@@ -1,0 +1,20 @@
+base_configs:
+  - ../data/default.yaml
+
+seed: 42
+
+pi:
+  feature_cols: [Current, B, Duty]
+  pi_channels: [Current, B, Duty]
+  coupling_enabled: true
+  coupling_types: []
+  lp_enabled: false
+  lp_alpha: 0.98
+  num_r: 12
+  r_strategy: linspace
+  r_min: 0.01
+  r_max_q: 0.95
+  r_q_low: 0.05
+  r_q_high: 0.95
+  ridge_lambda: 0.001
+  save_path: outputs/pi/pi_gap_model.npz
