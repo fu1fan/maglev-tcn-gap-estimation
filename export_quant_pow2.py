@@ -175,6 +175,28 @@ def window_iter(Xn: np.ndarray, Yn: np.ndarray, window_len: int, stride: int, ma
 
 
 # -----------------------------
+# metrics helpers
+# -----------------------------
+def compute_metrics(y_pred: np.ndarray, y_true: np.ndarray) -> dict:
+    """MAE, RMSE, MSE, R² for arrays shaped [N, C] or [N]."""
+    diff = y_pred.astype(np.float64) - y_true.astype(np.float64)
+    mae  = float(np.abs(diff).mean())
+    mse  = float((diff ** 2).mean())
+    rmse = float(np.sqrt(mse))
+    ss_res = float(np.sum((y_true.astype(np.float64) - y_pred.astype(np.float64)) ** 2))
+    ss_tot = float(np.sum((y_true.astype(np.float64) - y_true.astype(np.float64).mean()) ** 2))
+    r2 = float(1.0 - ss_res / ss_tot) if ss_tot > 1e-30 else None
+    return {"mae": mae, "rmse": rmse, "mse": mse, "r2": r2}
+
+
+def denorm_minmax(y_norm: np.ndarray, y_min: np.ndarray, y_max: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    """Inverse of minmax_01to11_transform: [-1, 1] → physical domain."""
+    denom = np.asarray(y_max, dtype=np.float64) - np.asarray(y_min, dtype=np.float64)
+    denom = np.where(np.abs(denom) < eps, 1.0, denom)
+    return ((np.asarray(y_norm, dtype=np.float64) + 1.0) / 2.0) * denom + np.asarray(y_min, dtype=np.float64)
+
+
+# -----------------------------
 # bitwidth estimation (accumulator)
 # -----------------------------
 def conv_accum_bits(a_bits: int, w_bits: int, terms: int, extra_guard: int = 2) -> int:
@@ -259,22 +281,19 @@ def eval_float_and_quant(
     w_qmeta: Dict[str, dict],
     max_batches: int = 2048,
     device="cpu",
+    y_min: Optional[np.ndarray] = None,
+    y_max: Optional[np.ndarray] = None,
 ):
     """
-    We compute:
-      - float pred, quant pred
-      - MSE(float vs GT), MSE(quant vs GT), MSE(quant vs float)
-      - branch error per block:
-          e_float = mean(|y2 - res|)
-          e_quant = mean(|y2_q - res_q|)   (same quant domain after qdq)
-          delta = e_quant - e_float
+    Compute MAE/RMSE/MSE/R² for float and quant predictions vs GT,
+    in both normalized [-1,1] and physical domains (if y_min/y_max supplied).
+    Also reports per-block branch balance (mean|y2 - res|) for float vs quant.
     """
     model.eval()
-    mse = nn.MSELoss(reduction="mean")
 
-    total_f_gt = 0.0
-    total_q_gt = 0.0
-    total_q_f = 0.0
+    pf_list: List[np.ndarray] = []
+    pq_list: List[np.ndarray] = []
+    yb_list: List[np.ndarray] = []
     n = 0
 
     # branch error accumulators
@@ -423,15 +442,14 @@ def eval_float_and_quant(
         pq = F.linear(last, whead, bhead_dq)
         pq = qdq_pow2(pq, a_bits, act_scales["head_out"])
 
-        # MSEs
-        total_f_gt += float(mse(pf, yb).item())
-        total_q_gt += float(mse(pq, yb).item())
-        total_q_f += float(mse(pq, pf).item())
+        pf_list.append(pf.cpu().numpy())
+        pq_list.append(pq.cpu().numpy())
+        yb_list.append(yb.cpu().numpy())
         n += 1
 
-    mse_f_gt = total_f_gt / max(n, 1)
-    mse_q_gt = total_q_gt / max(n, 1)
-    mse_q_f = total_q_f / max(n, 1)
+    pf_arr = np.concatenate(pf_list, axis=0) if pf_list else np.zeros((0, 1))
+    pq_arr = np.concatenate(pq_list, axis=0) if pq_list else np.zeros((0, 1))
+    yb_arr = np.concatenate(yb_list, axis=0) if yb_list else np.zeros((0, 1))
 
     branch_report = []
     for bi in range(len(model.tcn)):
@@ -446,13 +464,36 @@ def eval_float_and_quant(
             "ratio_quant_over_float": (eq / ef) if ef > 0 else None,
         })
 
+    metrics_norm = {
+        "float_vs_gt":   compute_metrics(pf_arr, yb_arr),
+        "quant_vs_gt":   compute_metrics(pq_arr, yb_arr),
+        "quant_vs_float": compute_metrics(pq_arr, pf_arr),
+    }
+
+    metrics_phys = None
+    if y_min is not None and y_max is not None and n > 0:
+        pf_phys = denorm_minmax(pf_arr, y_min, y_max)
+        pq_phys = denorm_minmax(pq_arr, y_min, y_max)
+        yb_phys = denorm_minmax(yb_arr, y_min, y_max)
+        metrics_phys = {
+            "float_vs_gt": compute_metrics(pf_phys, yb_phys),
+            "quant_vs_gt": compute_metrics(pq_phys, yb_phys),
+        }
+
+    fgt_mse = metrics_norm["float_vs_gt"]["mse"]
+    qgt_mse = metrics_norm["quant_vs_gt"]["mse"]
+    fgt_mae = metrics_norm["float_vs_gt"]["mae"]
+    qgt_mae = metrics_norm["quant_vs_gt"]["mae"]
+
     return {
-        "mse_float_vs_gt": mse_f_gt,
-        "mse_quant_vs_gt": mse_q_gt,
-        "mse_quant_vs_float": mse_q_f,
-        "ratio_qgt_over_fgt": (mse_q_gt / mse_f_gt) if mse_f_gt > 0 else None,
+        "normalized_domain": metrics_norm,
+        "physical_domain":   metrics_phys,
+        "degradation": {
+            "mse_ratio_quant_over_float": (qgt_mse / fgt_mse) if fgt_mse > 0 else None,
+            "mae_ratio_quant_over_float": (qgt_mae / fgt_mae) if fgt_mae > 0 else None,
+        },
         "branch_error": branch_report,
-        "num_batches": n,
+        "num_samples": n,
     }
 
 
@@ -643,6 +684,8 @@ def main():
         w_qmeta=w_qmeta,
         max_batches=min(args.eval_batches, len(xb_iter_for_eval)),
         device="cpu",
+        y_min=y_min,
+        y_max=y_max,
     )
 
     # 6) save
@@ -668,10 +711,10 @@ def main():
         "layer_bitwidth_report": layer_bw,
         "eval_quant_effect": eval_report,
         "notes": {
-            "bias_rule": "bias uses S_b = S_x * S_w, and exported as int32. In integer MAC: acc = sum(x_q*w_q) + b_q.",
-            "mse_domain": "MSE is computed in normalized domain (same as training target normalization if y_min/y_max exist in ckpt).",
-            "branch_error": "For each block, we report mean(|y2 - res|) before add, comparing float vs quant(fake-quant).",
-            "fake_quant": "Quant eval uses weight QDQ + activation QDQ + bias QDQ (derived from Sx*Sw). It's close to integer behavior and good for collapse-risk checking.",
+            "bias_rule": "Bias uses S_b = S_x * S_w, exported as int32. Integer MAC: acc = sum(x_q*w_q) + b_q.",
+            "metrics_domain": "normalized_domain uses [-1,1] normalized targets; physical_domain uses original physical units (requires y_min/y_max in ckpt).",
+            "branch_error": "Per-block mean(|y2 - res|) before residual add; compares float vs fake-quant path to assess residual balance risk.",
+            "fake_quant": "Quant eval uses weight/activation/bias QDQ (Sx*Sw). Approximates integer hardware behavior.",
         }
     }
 
@@ -680,10 +723,46 @@ def main():
 
     print(f"[OK] saved: {args.out_npz}")
     print(f"[OK] saved: {args.out_report}")
-    print("[EVAL] MSE float vs GT :", eval_report["mse_float_vs_gt"])
-    print("[EVAL] MSE quant vs GT :", eval_report["mse_quant_vs_gt"])
-    print("[EVAL] MSE quant vs float:", eval_report["mse_quant_vs_float"])
-    print("[EVAL] ratio q/float    :", eval_report["ratio_qgt_over_fgt"])
+
+    # ---- pretty-print eval metrics ----
+    nd     = eval_report["normalized_domain"]
+    phys_d = eval_report.get("physical_domain") or {}
+    dg     = eval_report["degradation"]
+    ns     = eval_report["num_samples"]
+
+    def _fmt(v, fmt=".6f"):
+        return f"{v:{fmt}}" if v is not None else "N/A"
+
+    hdr = f"  Quantization Eval  |  w{args.w_bits}b / a{args.a_bits}b  |  {ns} samples"
+    sep = "=" * max(len(hdr), 60)
+    print(f"\n{sep}")
+    print(hdr)
+    print(sep)
+    print(f"  {'Metric':<36}  {'Float':>12}  {'Quant':>12}")
+    print(f"  {'-' * 64}")
+    for metric, label in [("mae", "MAE"), ("rmse", "RMSE"), ("mse", "MSE"), ("r2", "R\u00b2")]:
+        fv = nd["float_vs_gt"][metric]
+        qv = nd["quant_vs_gt"][metric]
+        print(f"  [norm] {label:<29}  {_fmt(fv):>12}  {_fmt(qv):>12}")
+    if phys_d:
+        fgt_p = phys_d.get("float_vs_gt", {})
+        qgt_p = phys_d.get("quant_vs_gt", {})
+        print(f"  {'-' * 64}")
+        for metric, label in [("mae", "MAE"), ("rmse", "RMSE"), ("mse", "MSE"), ("r2", "R\u00b2")]:
+            fv = fgt_p.get(metric)
+            qv = qgt_p.get(metric)
+            print(f"  [phys] {label:<29}  {_fmt(fv):>12}  {_fmt(qv):>12}")
+    print(f"  {'-' * 64}")
+    print(f"  {'Quant / Float  MAE ratio':<36}  {_fmt(dg['mae_ratio_quant_over_float'], '.4f'):>12}")
+    print(f"  {'Quant / Float  MSE ratio':<36}  {_fmt(dg['mse_ratio_quant_over_float'], '.4f'):>12}")
+    print(f"  {'-' * 64}")
+    print("  Block branch balance  mean|y2 - res|:")
+    for b in eval_report["branch_error"]:
+        ef = b["mean_abs_branch_diff_float"]
+        eq = b["mean_abs_branch_diff_quant"]
+        ratio_s = f"{b['ratio_quant_over_float']:.3f}x" if b["ratio_quant_over_float"] is not None else "N/A"
+        print(f"    block {b['block']:2d}:  float={ef:.6f}  quant={eq:.6f}  ratio={ratio_s}")
+    print(sep)
 
 
 if __name__ == "__main__":
