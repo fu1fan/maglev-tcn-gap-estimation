@@ -291,6 +291,7 @@ def main():
     model.load_state_dict(ckpt["model_state"], strict=True)
     model.eval()
 
+    cfg.DATASET_DIR = "data/processed"
     csv_files = m.list_csv_files(cfg.DATASET_DIR)
     if len(csv_files) == 0:
         raise FileNotFoundError(f"在目录 {cfg.DATASET_DIR} 未找到任何 .csv 文件")
