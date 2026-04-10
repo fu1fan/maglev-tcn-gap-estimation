@@ -21,7 +21,7 @@
 
 ---
 
-## 2. 目录结构（整理后）
+## 2. 目录结构
 
 ### 2.1 顶层结构
 
@@ -316,24 +316,3 @@ python export_quant_pow2.py --main_py main.py --ckpt artifacts/models/checkpoint
 python export_quant_hpp.py --npz artifacts/quant/quant_params.npz --report artifacts/quant/quant_report.json --ckpt artifacts/models/checkpoints/tcn_gap_best.pt --out_dir artifacts/quant/include --base tcn_quant
 ```
 
----
-
-## 12. 仓库整理说明（本次）
-
-本仓库已按用途完成一次非代码文件重构：
-
-- 数据：统一放入 [data/](data/)
-- 可复现产物：统一放入 [artifacts/](artifacts/)
-- 实验分析结果：保留在 [results/](results/)
-
-不确定用途但保留的文件已放到 [data/samples/manual_upload/](data/samples/manual_upload/) 便于后续确认。
-
----
-
-## 13. 许可与引用
-
-如用于论文或工程报告，建议在你的文档中说明：
-
-- 软测量模型：基于 TCN 的磁悬浮气隙估计
-- 部署策略：量化 + HLS 参数导出 + 流式一致性验证
-- 实时性指标：满足 10 kHz 控制频率要求
