@@ -4,11 +4,20 @@ from .cnn1d import CNN1DRegressor
 from .lstm import LSTMRegressor
 from .mlp import MLPRegressor
 from .tcn import TCNRegressor
+from .tcn_distill import TCNDistillRegressor
 
 
 def create_model(model_name: str, in_ch: int, out_ch: int, model_cfg: dict, window_len: int):
     if model_name == "tcn":
         return TCNRegressor(
+            in_ch=in_ch,
+            out_ch=out_ch,
+            channels=tuple(model_cfg["channels"]),
+            kernel_size=model_cfg["kernel_size"],
+            dropout=model_cfg["dropout"],
+        )
+    if model_name == "tcn_distill":
+        return TCNDistillRegressor(
             in_ch=in_ch,
             out_ch=out_ch,
             channels=tuple(model_cfg["channels"]),

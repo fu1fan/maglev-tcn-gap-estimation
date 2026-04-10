@@ -1,0 +1,30 @@
+base_configs:
+  - tcn_distill_default.yaml
+
+run_name: tcn_distill_smoke
+device: auto
+
+training:
+  batch_size: 128
+  num_workers: 0
+  epochs: 2
+  lr: 0.002
+  weight_decay: 1.0e-4
+  amp: false
+  w_gap: 1.0
+  w_dgap: 0.5
+
+distillation:
+  teacher_checkpoint: outputs/checkpoints/teacher/mlp_teacher_smoke.pt
+  alpha: 0.5
+  beta: 0.5
+
+outputs:
+  root_dir: outputs
+  checkpoint_dir: outputs/checkpoints/tcn_distill_smoke
+  best_checkpoint_name: tcn_distill_gap_best_smoke.pt
+  experiments_root: outputs/experiments
+  quant_dir: outputs/quant
+  testbench_dir: outputs/testbench
+  paper_dir: outputs/paper
+  pi_dir: outputs/pi

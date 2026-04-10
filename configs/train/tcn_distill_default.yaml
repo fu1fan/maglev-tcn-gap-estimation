@@ -1,0 +1,43 @@
+base_configs:
+  - ../data/default.yaml
+  - ../models/tcn_distill.yaml
+
+run_name: tcn_distill_default
+seed: 42
+device: auto
+
+features:
+  use_duty: true
+  use_dduty: false
+  use_force: false
+  use_dforce: false
+  use_iac: true
+  use_diac: true
+  predict_dgap: false
+
+training:
+  batch_size: 256
+  num_workers: 0
+  epochs: 50
+  lr: 0.002
+  weight_decay: 1.0e-4
+  amp: true
+  w_gap: 1.0
+  w_dgap: 0.5
+
+distillation:
+  # Path to a pre-trained teacher checkpoint (MLP or any compatible model).
+  # Must share x_cols, y_cols and window.length with the student config.
+  teacher_checkpoint: outputs/checkpoints/teacher/mlp_teacher.pt
+  alpha: 0.5   # weight for hard loss  (student vs ground truth)
+  beta: 0.5    # weight for distill loss (student vs teacher output)
+
+outputs:
+  root_dir: outputs
+  checkpoint_dir: outputs/checkpoints/tcn_distill
+  best_checkpoint_name: tcn_distill_gap_best.pt
+  experiments_root: outputs/experiments
+  quant_dir: outputs/quant
+  testbench_dir: outputs/testbench
+  paper_dir: outputs/paper
+  pi_dir: outputs/pi

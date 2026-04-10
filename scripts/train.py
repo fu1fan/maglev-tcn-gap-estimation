@@ -93,6 +93,58 @@ def _train_tcn(args):
     print(f"Saved best checkpoint to {save_path}")
 
 
+def _train_tcn_distill(args):
+    from maglev_gap.config import load_config
+    from maglev_gap.data import make_dataloaders, prepare_data_bundle
+    from maglev_gap.engine import save_checkpoint, train_regressor_kd
+    from maglev_gap.models import create_model
+    from maglev_gap.runtime import resolve_device, seed_everything
+
+    config = load_config(args.config)
+    config["device"] = resolve_device(config["device"])
+    seed_everything(config["seed"])
+
+    if "distillation" not in config:
+        raise KeyError("Config must contain a [distillation] section with teacher_checkpoint, alpha and beta.")
+
+    bundle = prepare_data_bundle(config)
+    train_loader, test_loader = make_dataloaders(bundle["train_norm"], bundle["test_norm"], config)
+    student = create_model(
+        model_name=config["model"]["name"],
+        in_ch=len(bundle["x_cols"]),
+        out_ch=len(bundle["y_cols"]),
+        model_cfg=config["model"],
+        window_len=config["window"]["length"],
+    )
+    result = train_regressor_kd(
+        student=student,
+        train_loader=train_loader,
+        val_loader=test_loader,
+        config=config,
+        x_cols=bundle["x_cols"],
+        y_cols=bundle["y_cols"],
+    )
+    checkpoint_path = f"{config['outputs']['checkpoint_dir']}/{config['outputs']['best_checkpoint_name']}"
+    save_path = save_checkpoint(
+        path=checkpoint_path,
+        model_state=result["best_state"],
+        model_name=config["model"]["name"],
+        config=config,
+        x_cols=bundle["x_cols"],
+        y_cols=bundle["y_cols"],
+        x_min=bundle["x_scaler"].x_min,
+        x_max=bundle["x_scaler"].x_max,
+        y_min=bundle["y_scaler"].x_min,
+        y_max=bundle["y_scaler"].x_max,
+        meta={"best_gap": result["best_gap"], "history": result["history"]},
+    )
+    print(f"[KD] Found {len(bundle['file_paths'])} CSV files")
+    print(f"[KD] Cin={len(bundle['x_cols'])} x_cols={bundle['x_cols']}")
+    print(f"[KD] Cout={len(bundle['y_cols'])} y_cols={bundle['y_cols']}")
+    print(f"[KD] Best val_gap={result['best_gap']:.6f}")
+    print(f"[KD] Saved student checkpoint to {save_path}")
+
+
 def _train_experiments(args):
     from pathlib import Path
 
@@ -160,6 +212,10 @@ def build_parser():
     tcn = sub.add_parser("tcn", help="Train the main TCN model")
     tcn.add_argument("--config", default="configs/train/tcn_default.yaml")
     tcn.set_defaults(func=_train_tcn)
+
+    distill = sub.add_parser("tcn-distill", help="Train TCN student with knowledge distillation")
+    distill.add_argument("--config", default="configs/train/tcn_distill_default.yaml")
+    distill.set_defaults(func=_train_tcn_distill)
 
     exp = sub.add_parser("experiments", help="Run experiment registry entries")
     exp.add_argument("--config", default="configs/experiments/core.yaml")

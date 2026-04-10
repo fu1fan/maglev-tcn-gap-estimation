@@ -1,0 +1,20 @@
+base_configs:
+  - tcn_distill_default.yaml
+
+run_name: tcn_distill_lstm
+device: auto
+
+distillation:
+  teacher_checkpoint: outputs/checkpoints/teacher/lstm_teacher.pt
+  alpha: 0.5
+  beta: 0.5
+
+outputs:
+  root_dir: outputs
+  checkpoint_dir: outputs/checkpoints/tcn_distill_lstm
+  best_checkpoint_name: tcn_distill_lstm_gap_best.pt
+  experiments_root: outputs/experiments
+  quant_dir: outputs/quant
+  testbench_dir: outputs/testbench
+  paper_dir: outputs/paper
+  pi_dir: outputs/pi

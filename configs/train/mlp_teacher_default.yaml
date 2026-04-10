@@ -1,0 +1,36 @@
+base_configs:
+  - ../data/default.yaml
+  - ../models/mlp.yaml
+
+run_name: mlp_teacher_default
+seed: 42
+device: auto
+
+features:
+  use_duty: true
+  use_dduty: false
+  use_force: false
+  use_dforce: false
+  use_iac: true
+  use_diac: true
+  predict_dgap: false
+
+training:
+  batch_size: 256
+  num_workers: 0
+  epochs: 50
+  lr: 0.002
+  weight_decay: 1.0e-4
+  amp: true
+  w_gap: 1.0
+  w_dgap: 0.5
+
+outputs:
+  root_dir: outputs
+  checkpoint_dir: outputs/checkpoints/teacher
+  best_checkpoint_name: mlp_teacher.pt
+  experiments_root: outputs/experiments
+  quant_dir: outputs/quant
+  testbench_dir: outputs/testbench
+  paper_dir: outputs/paper
+  pi_dir: outputs/pi

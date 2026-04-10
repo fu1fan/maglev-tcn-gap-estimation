@@ -7,7 +7,7 @@ from .evaluator import (
     predict_on_segment,
     regression_metrics,
 )
-from .trainer import count_params, evaluate_norm_loss, train_regressor
+from .trainer import count_params, evaluate_norm_loss, train_regressor, train_regressor_kd
 
 __all__ = [
     "calc_metrics",
@@ -21,4 +21,5 @@ __all__ = [
     "regression_metrics",
     "save_checkpoint",
     "train_regressor",
+    "train_regressor_kd",
 ]
